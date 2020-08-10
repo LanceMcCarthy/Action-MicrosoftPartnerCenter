@@ -24,14 +24,10 @@ inputs:
     description: 'If there is a pending submission, the task will intentionally fail. Setting this to true will allow it to delete the pending one, then submit the new one. it will be deletes it before uploading this one.'
     required: false
     default: false
-  mandatory_update:
-    description: 'Indicates whether you want to treat the packages in this submission as mandatory for self-installing app updates.'
+  fail_if_unsuccessful:
+    description: 'Setting this to True will fail the Workflow step if the new submission fails.'
     required: false
     default: false
-  mandatory_update_hours:
-    description: 'The number of hours until packages become mandatory'
-    required: false
-    default: 24
 
 runs:
   using: 'node12'

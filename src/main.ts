@@ -1,42 +1,30 @@
 import * as core from '@actions/core'
+import { BlockBlobClient } from '@azure/storage-blob'
 import * as partnerCenter from './partnerCenter'
 
-// Store API Upload endpoint https://manage.devcenter.microsoft.com
-// Azure Tenant ID
-// Client ID
-// Client Secret
-// DeletePending submissions (Whether to delete an existing submission instead of failing the task)
-// AppId (ID of the application, found in the URL for the application's page on the Dev Center)
-// PackageFile (Path to the application's package (appxupload/msixupload) you want to flight.)
-// MandatoryUpdate (Indicates whether you want to treat the packages in this submission as mandatory for self-installing app updates.)
-// MandatoryUpdateHours (The number of hours until packages become mandatory)
-
 export async function run(): Promise<void> {
-  const tenantId = core.getInput('tenant_id')
-  const clientId = core.getInput('client_id')
-  const clientSecret = core.getInput('client_secret')
-  const appId = core.getInput('app_id')
-  const packageFile = core.getInput('package_file')
-  const deletePendingSubmissions =
-    core.getInput('delete_pending_submissions').toLowerCase() == 'true'
-  const mandatoryUpdate =
-    core.getInput('mandatory_update').toLowerCase() == 'true'
-  const mandatoryUpdateHours = Number(core.getInput('mandatory_update_hours'))
+  const tenantId = core.getInput('tenant_id');
+  const clientId = core.getInput('client_id');
+  const clientSecret = core.getInput('client_secret');
+  const appId = core.getInput('app_id');
+  const packageFile = core.getInput('package_file');
+  const deletePendingSubmissions = core.getInput('delete_pending_submissions').toLowerCase() == 'true';
+  const failIfUnsuccessful = core.getInput('fail_if_unsuccessful').toLowerCase() == 'true';
 
   if (tenantId === '') {
-    throw new Error('The tenantId cannot be empty.')
+    throw new Error('The tenantId cannot be empty.');
   }
   if (clientId === '') {
-    throw new Error('The clientId cannot be empty.')
+    throw new Error('The clientId cannot be empty.');
   }
   if (clientSecret === '') {
-    throw new Error('The clientSecret cannot be empty.')
+    throw new Error('The clientSecret cannot be empty.');
   }
   if (appId === '') {
-    throw new Error('The appId cannot be empty.')
+    throw new Error('The appId cannot be empty.');
   }
   if (packageFile === '') {
-    throw new Error('The packageFile cannot be empty.')
+    throw new Error('The packageFile cannot be empty.');
   }
 
   // 1. Authenticate
@@ -44,37 +32,70 @@ export async function run(): Promise<void> {
     tenantId,
     clientId,
     clientSecret
-  )
-  const auth = 'Bearer ' + authResult.access_token
+  );
+
+  core.info("Authenticated...");
+
+  const auth = 'Bearer ' + authResult.access_token;
 
   // Get the application's info
-  const appInfo = await partnerCenter.getAppResourceInfo(auth, appId)
+  const appInfo = await partnerCenter.getAppResourceInfo(auth, appId);
+
+  core.info("Retrieved information for: " + appInfo.primaryName + " application...");
 
   // Check for pending submissions
   const pendingSubmission =
-    appInfo.pendingApplicationSubmission === null ? true : false
+    appInfo.pendingApplicationSubmission === null ? true : false;
+
+    core.info("Submissiong pending? " + pendingSubmission);
 
   // If desired, delete the pending submissions
   if (deletePendingSubmissions && pendingSubmission) {
-    await partnerCenter.deleteSubmission(
+    const successfulDelete = await partnerCenter.deleteSubmission(
       auth,
       appInfo.id,
       appInfo.pendingApplicationSubmission.id
-    )
+    );
+
+    core.info("Pending submission deleted? " + successfulDelete);
   }
 
   // Create a new submission
-  const createSubResult = await partnerCenter.createAppSubmission(auth, appId)
-  const submissionId = createSubResult.id
+  const createSubResult = await partnerCenter.createAppSubmission(auth, appId);
 
-  // TODO need to figure out how to attach package file to submission.
+  core.info("Request new submission: " + createSubResult.status);
+
+  // with an SAS upload URL, we can now upload the appxupload/msixupload file.
+  try{
+    core.info("Uploading package file...");
+    await new BlockBlobClient(createSubResult.fileUploadUrl).uploadFile(packageFile);
+    core.info("Upload complete!");
+  }catch (err){
+    core.error("SAS Upload Error: " + err);
+    throw console.error("SAS Upload Error: " + err)
+  }
+
+  core.info("Committing submission...: ");
 
   // Commit
   const commitResult = await partnerCenter.commitSubmission(
     auth,
     appId,
-    submissionId
-  )
+    createSubResult.id
+  );
+
+  core.info("Submissiong committed: " + commitResult.status);
+
+  if(failIfUnsuccessful){
+    if(commitResult.status == "CommitFailed"
+       || commitResult.status == "PublishFailed"
+       || commitResult.status == "PreProcessingFailed"
+       || commitResult.status == "CertificationFailed"
+       || commitResult.status == "ReleaseFailed"){
+      core.error(commitResult.status);
+      core.setFailed("There was a problem with the app submission, see output errors for more details.")
+    }
+  }
 
   // possible result messages for commitResult.status
   // None
@@ -95,7 +116,6 @@ export async function run(): Promise<void> {
 
 }
 
-// Showtime!
 run().catch(e => {
   core.debug(e.stack)
   core.error(e.message)
