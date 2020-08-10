@@ -1,0 +1,38 @@
+name: 'Microsoft Partner Center API'
+description: 'Publish and Manage your UWP application submissions right from the GitHub Action using the Microsoft Partner Center APIs.'
+author: 'Lance McCarthy'
+branding:
+  icon: 'package'
+  color: 'purple'
+inputs:
+  tenant_id:
+    description: 'This is your Service Principal's Tenant ID (see readme for guidance)'
+    required: true
+  client_id:
+    description: 'This is your Service Principal's Client ID (see readme for guidance)'
+    required: true
+  client_secret:
+    description: 'This is your Service Principal's Client Secret ID (see readme for guidance)'
+    required: true
+  app_id:
+    description: 'This is the app's Store ID (e.g. 9NRXNX3WLH77). Find this in the app's Partner Center, Product Management, then Product Identity page. See readme for guidance.'
+    required: true
+  package_file:
+    description: 'Path to the application's package to upload (appxupload/msixupload).'
+    required: true
+  delete_pending_submissions:
+    description: 'If there is a pending submission, the task will intentionally fail. Setting this to true will allow it to delete the pending one, then submit the new one. it will be deletes it before uploading this one.'
+    required: false
+    default: false
+  mandatory_update:
+    description: 'Indicates whether you want to treat the packages in this submission as mandatory for self-installing app updates.'
+    required: false
+    default: false
+  mandatory_update_hours:
+    description: 'The number of hours until packages become mandatory'
+    required: false
+    default: 24
+
+runs:
+  using: 'node12'
+  main: 'dist/index.js'

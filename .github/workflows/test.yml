@@ -1,0 +1,39 @@
+name: 'build-test'
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - 'releases/*'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v2
+      - run: |
+          npm install
+      - run: |
+          npm run build
+      - run: |
+          npm run package
+      - run: |
+          npm test
+
+  test: 
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v2
+        
+      - name: Azure Blob Upload
+        uses: ./
+        with:
+          tenant_id: ${{ secrets.PARNER_CENTER_CLIENT_SECRET }}
+          client_id: ${{ secrets.PARTNER_CENTER_CLIENT_ID }}
+          client_secret: ${{ secrets.PARNER_CENTER_CLIENT_SECRET }}
+          app_id: package_file
+          package_file: src/TestPackages/MyApp.msixupload
+          delete_pending_submissions: true
+          mandatory_update: false
+          mandatory_update_hours: 6
