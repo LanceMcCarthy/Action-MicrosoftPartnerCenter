@@ -8,10 +8,8 @@ export async function run(): Promise<void> {
   const clientSecret = core.getInput('client_secret')
   const appId = core.getInput('app_id')
   const packageFile = core.getInput('package_file')
-  const deletePendingSubmissions =
-    core.getInput('delete_pending_submissions').toLowerCase() == 'true'
-  const failIfUnsuccessful =
-    core.getInput('fail_if_unsuccessful').toLowerCase() == 'true'
+  const deletePendingSubmissions = core.getInput('delete_pending_submissions').toLowerCase() == 'true'
+  const failIfUnsuccessful = core.getInput('fail_if_unsuccessful').toLowerCase() == 'true'
 
   if (tenantId === '') {
     throw new Error('The tenantId cannot be empty.')
@@ -43,10 +41,7 @@ export async function run(): Promise<void> {
 
   // If desired, delete the pending submissions
   if (deletePendingSubmissions && pendingSubmission) {
-    const successfulDelete = await devCenter.DeleteSubmission(
-      appInfo.id,
-      appInfo.pendingApplicationSubmission.id
-    )
+    const successfulDelete = await devCenter.DeleteSubmission(appInfo.id, appInfo.pendingApplicationSubmission.id)
 
     core.info(`"Pending submission deleted?  ${successfulDelete}"`)
   }
@@ -59,9 +54,7 @@ export async function run(): Promise<void> {
     core.info('Uploading package file...')
 
     // with an SAS upload URL, we can now upload the appxupload/msixupload file.
-    await new BlockBlobClient(createSubmissionResult.fileUploadUrl).uploadFile(
-      packageFile
-    )
+    await new BlockBlobClient(createSubmissionResult.fileUploadUrl).uploadFile(packageFile)
 
     core.info('Upload complete!')
   } catch (ex) {
