@@ -1,6 +1,6 @@
 import * as core from '@actions/core'
 import { BlockBlobClient } from '@azure/storage-blob'
-import * as partnerCenter from './partnerCenter'
+import * as storeSdk from '@lancemccarthy/partner-center-broker' 
 
 export async function run(): Promise<void> {
   const tenantId = core.getInput('tenant_id');
@@ -27,48 +27,36 @@ export async function run(): Promise<void> {
     throw new Error('The packageFile cannot be empty.');
   }
 
-  // 1. Authenticate
-  const authResult = await partnerCenter.authenticate(
-    tenantId,
-    clientId,
-    clientSecret
-  );
+  let devCenter = new storeSdk.DevCenter(tenantId, clientId, clientSecret);
 
-  core.info("Authenticated...");
-
-  const auth = 'Bearer ' + authResult.access_token;
-
-  // Get the application's info
-  const appInfo = await partnerCenter.getAppResourceInfo(auth, appId);
+  const appInfo = await devCenter.GetAppInfo(appId);
 
   core.info("Retrieved information for: " + appInfo.primaryName + " application...");
 
   // Check for pending submissions
-  const pendingSubmission =
-    appInfo.pendingApplicationSubmission === null ? true : false;
+  const pendingSubmission = appInfo.pendingApplicationSubmission === null ? true : false;
 
-    core.info("Submissiong pending? " + pendingSubmission);
+  core.info("Submission pending? " + pendingSubmission);
 
   // If desired, delete the pending submissions
   if (deletePendingSubmissions && pendingSubmission) {
-    const successfulDelete = await partnerCenter.deleteSubmission(
-      auth,
-      appInfo.id,
+    const successfulDelete = await devCenter.DeleteSubmission(appInfo.id,
       appInfo.pendingApplicationSubmission.id
     );
 
     core.info("Pending submission deleted? " + successfulDelete);
   }
 
-  // Create a new submission
-  const createSubResult = await partnerCenter.createAppSubmission(auth, appId);
+  const createSubmissionResult = await devCenter.CreateAppSubmission(appId);
 
-  core.info("Request new submission: " + createSubResult.status);
+  core.info("Request new submission: " + createSubmissionResult.status);
 
-  // with an SAS upload URL, we can now upload the appxupload/msixupload file.
   try{
     core.info("Uploading package file...");
-    await new BlockBlobClient(createSubResult.fileUploadUrl).uploadFile(packageFile);
+
+    // with an SAS upload URL, we can now upload the appxupload/msixupload file.
+    await new BlockBlobClient(createSubmissionResult.fileUploadUrl).uploadFile(packageFile);
+
     core.info("Upload complete!");
   }catch (err){
     core.error("SAS Upload Error: " + err);
@@ -78,13 +66,12 @@ export async function run(): Promise<void> {
   core.info("Committing submission...: ");
 
   // Commit
-  const commitResult = await partnerCenter.commitSubmission(
-    auth,
+  const commitResult = await devCenter.CommitSubmission(
     appId,
-    createSubResult.id
+    createSubmissionResult.id
   );
 
-  core.info("Submissiong committed: " + commitResult.status);
+  core.info("Submission committed: " + commitResult.status);
 
   if(failIfUnsuccessful){
     if(commitResult.status == "CommitFailed"

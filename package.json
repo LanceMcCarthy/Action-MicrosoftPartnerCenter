@@ -34,6 +34,7 @@
   "dependencies": {
     "@actions/core": "^1.2.4",
     "@azure/storage-blob": "^12.2.0-preview.1",
+    "@lancemccarthy/partner-center-broker": "^1.0.0",
     "@types/glob": "^7.1.3",
     "@types/mime-types": "^2.1.0",
     "glob": "^7.1.6",
