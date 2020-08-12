@@ -1,86 +1,96 @@
 import * as core from '@actions/core'
-import { BlockBlobClient } from '@azure/storage-blob'
-import * as storeSdk from '@lancemccarthy/partner-center-broker' 
+import {BlockBlobClient} from '@azure/storage-blob'
+import {DevCenter} from 'partner-center-broker'
 
 export async function run(): Promise<void> {
-  const tenantId = core.getInput('tenant_id');
-  const clientId = core.getInput('client_id');
-  const clientSecret = core.getInput('client_secret');
-  const appId = core.getInput('app_id');
-  const packageFile = core.getInput('package_file');
-  const deletePendingSubmissions = core.getInput('delete_pending_submissions').toLowerCase() == 'true';
-  const failIfUnsuccessful = core.getInput('fail_if_unsuccessful').toLowerCase() == 'true';
+  const tenantId = core.getInput('tenant_id')
+  const clientId = core.getInput('client_id')
+  const clientSecret = core.getInput('client_secret')
+  const appId = core.getInput('app_id')
+  const packageFile = core.getInput('package_file')
+  const deletePendingSubmissions =
+    core.getInput('delete_pending_submissions').toLowerCase() == 'true'
+  const failIfUnsuccessful =
+    core.getInput('fail_if_unsuccessful').toLowerCase() == 'true'
 
   if (tenantId === '') {
-    throw new Error('The tenantId cannot be empty.');
+    throw new Error('The tenantId cannot be empty.')
   }
   if (clientId === '') {
-    throw new Error('The clientId cannot be empty.');
+    throw new Error('The clientId cannot be empty.')
   }
   if (clientSecret === '') {
-    throw new Error('The clientSecret cannot be empty.');
+    throw new Error('The clientSecret cannot be empty.')
   }
   if (appId === '') {
-    throw new Error('The appId cannot be empty.');
+    throw new Error('The appId cannot be empty.')
   }
   if (packageFile === '') {
-    throw new Error('The packageFile cannot be empty.');
+    throw new Error('The packageFile cannot be empty.')
   }
 
-  let devCenter = new storeSdk.DevCenter(tenantId, clientId, clientSecret);
+  let devCenter = new DevCenter(tenantId, clientId, clientSecret)
 
-  const appInfo = await devCenter.GetAppInfo(appId);
+  const appInfo = await devCenter.GetAppInfo(appId)
 
-  core.info("Retrieved information for: " + appInfo.primaryName + " application...");
+  core.info(`"Retrieved information for:  ${appInfo.primaryName}" application...`)
 
   // Check for pending submissions
-  const pendingSubmission = appInfo.pendingApplicationSubmission === null ? true : false;
+  const pendingSubmission =
+    appInfo.pendingApplicationSubmission === null ? true : false
 
-  core.info("Submission pending? " + pendingSubmission);
+  core.info(`"Submission pending? ${pendingSubmission}"`)
 
   // If desired, delete the pending submissions
   if (deletePendingSubmissions && pendingSubmission) {
-    const successfulDelete = await devCenter.DeleteSubmission(appInfo.id,
+    const successfulDelete = await devCenter.DeleteSubmission(
+      appInfo.id,
       appInfo.pendingApplicationSubmission.id
-    );
+    )
 
-    core.info("Pending submission deleted? " + successfulDelete);
+    core.info(`"Pending submission deleted?  ${successfulDelete}"`)
   }
 
-  const createSubmissionResult = await devCenter.CreateAppSubmission(appId);
+  const createSubmissionResult = await devCenter.CreateAppSubmission(appId)
 
-  core.info("Request new submission: " + createSubmissionResult.status);
+  core.info(`"Request new submission: ${createSubmissionResult.status}"`)
 
-  try{
-    core.info("Uploading package file...");
+  try {
+    core.info('Uploading package file...')
 
     // with an SAS upload URL, we can now upload the appxupload/msixupload file.
-    await new BlockBlobClient(createSubmissionResult.fileUploadUrl).uploadFile(packageFile);
+    await new BlockBlobClient(createSubmissionResult.fileUploadUrl).uploadFile(
+      packageFile
+    )
 
-    core.info("Upload complete!");
-  }catch (err){
-    core.error("SAS Upload Error: " + err);
-    throw console.error("SAS Upload Error: " + err)
+    core.info('Upload complete!')
+  } catch (ex) {
+    core.error(`"SAS Upload Error: ${ex}"`)
+    throw console.error(`"SAS Upload Error: ${ex}"`)
   }
 
-  core.info("Committing submission...: ");
+  core.info('Committing submission...: ')
 
   // Commit
   const commitResult = await devCenter.CommitSubmission(
     appId,
     createSubmissionResult.id
-  );
+  )
 
-  core.info("Submission committed: " + commitResult.status);
+  core.info(`"Submission committed: ${commitResult.status}"`)
 
-  if(failIfUnsuccessful){
-    if(commitResult.status == "CommitFailed"
-       || commitResult.status == "PublishFailed"
-       || commitResult.status == "PreProcessingFailed"
-       || commitResult.status == "CertificationFailed"
-       || commitResult.status == "ReleaseFailed"){
-      core.error(commitResult.status);
-      core.setFailed("There was a problem with the app submission, see output errors for more details.")
+  if (failIfUnsuccessful) {
+    if (
+      commitResult.status === 'CommitFailed' ||
+      commitResult.status === 'PublishFailed' ||
+      commitResult.status === 'PreProcessingFailed' ||
+      commitResult.status === 'CertificationFailed' ||
+      commitResult.status === 'ReleaseFailed'
+    ) {
+      core.error(commitResult.status)
+      core.setFailed(
+        'There was a problem with the app submission, see output errors for more details.'
+      )
     }
   }
 
@@ -100,7 +110,6 @@ export async function run(): Promise<void> {
   // CertificationFailed
   // Release
   // ReleaseFailed
-
 }
 
 run().catch(e => {
